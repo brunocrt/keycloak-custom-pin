@@ -1,0 +1,9 @@
+# IDE
+.idea
+*.iml
+
+# Maven
+target
+
+# Docker
+docker/*
