@@ -2,16 +2,23 @@ package com.github.brunocrt.keycloak.custompin.resource;
 
 import com.github.brunocrt.keycloak.custompin.generator.PINGenerator;
 import com.github.brunocrt.keycloak.custompin.generator.PINGeneratorException;
+import org.keycloak.TokenVerifier;
+import org.keycloak.common.VerificationException;
 import org.keycloak.models.KeycloakSession;
-import org.keycloak.services.managers.AppAuthManager;
+import org.keycloak.models.RealmModel;
+import org.keycloak.representations.AccessToken;
+import org.keycloak.services.Urls;
 import org.keycloak.services.resource.RealmResourceProvider;
-import org.keycloak.services.managers.AuthenticationManager;
 
 import javax.ws.rs.*;
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Logger;
+
+import static javax.ws.rs.core.HttpHeaders.AUTHORIZATION;
 
 /**
  * Custom REST Endpoint for generate a time-based
@@ -29,9 +36,10 @@ import java.util.Map;
  */
 public class CustomPINResourceProvider implements RealmResourceProvider {
 
+    private static final Logger LOGGER = Logger.getLogger(CustomPINResourceProvider.class.getName());
+
     private KeycloakSession session;
     private PINGenerator pinGenerator;
-    private final AuthenticationManager.AuthResult auth;
 
     private static final String INPUT_PARAM_USERNAME = "username";
     private static final String OUTPUT_PARAM_REALM = "REALM";
@@ -42,7 +50,6 @@ public class CustomPINResourceProvider implements RealmResourceProvider {
     public CustomPINResourceProvider(KeycloakSession session, PINGenerator pinGenerator) {
         this.session = session;
         this.pinGenerator = pinGenerator;
-        this.auth = new AppAuthManager().authenticateBearerToken(session, session.getContext().getRealm());
     }
 
     @Override
@@ -55,7 +62,7 @@ public class CustomPINResourceProvider implements RealmResourceProvider {
     @Produces(MediaType.APPLICATION_JSON)
     public Response get(@FormParam(INPUT_PARAM_USERNAME) String userName) {
 
-        // TODO: check if client is authenticated
+        validateSession(this.session);
 
         if(userName == null || userName.trim().length() == 0) {
             return Response.serverError().entity(INPUT_PARAM_USERNAME+" cannot be blank").build();
@@ -84,18 +91,61 @@ public class CustomPINResourceProvider implements RealmResourceProvider {
         return Response.ok(responseEntity, MediaType.APPLICATION_JSON).build();
     }
 
-
-    private void checkAuthentication() {
-        if (auth == null) {
-            throw new NotAuthorizedException("Bearer");
-        } else if (auth.getToken().getRealmAccess() == null) {
-            throw new ForbiddenException("Does not have realm access");
-        }
-    }
-
     @Override
     public void close() {
         // Not implemented
     }
 
+    private void validateSession(KeycloakSession session) throws NotAuthorizedException {
+
+        AccessToken accessToken = validateToken(session);
+
+        if (accessToken == null) {
+            LOGGER.warning("client not authenticated");
+            throw new NotAuthorizedException("not_authenticated");
+        }
+
+        if (accessToken.getRealmAccess() == null) {
+            LOGGER.warning("no realm associated with authorization");
+            throw new NotAuthorizedException("no realm authorization");
+        }
+
+        if (!accessToken.isActive()) {
+            LOGGER.warning("Token not active");
+            throw new NotAuthorizedException("token not active");
+        }
+
+    }
+
+    private AccessToken validateToken(KeycloakSession session) throws NotAuthorizedException {
+        try {
+            RealmModel realm = session.getContext().getRealm();
+            HttpHeaders headers = session.getContext().getRequestHeaders();
+            String tokenString = readAccessTokenFrom(headers);
+            TokenVerifier<AccessToken> verifier = TokenVerifier.create(tokenString, AccessToken.class).parse();
+            AccessToken accessToken = verifier.getToken();
+            // TODO: verify if token is valid, not only format nor expired (realm/client)
+            return accessToken;
+        } catch (NotAuthorizedException e) {
+            throw e;
+        } catch (VerificationException e) {
+            LOGGER.warning("introspection of token failed: "+e.getMessage());
+            throw new NotAuthorizedException("access_token_introspection_failed: "+e.getMessage());
+        }
+    }
+
+
+    private String readAccessTokenFrom(HttpHeaders headers) throws NotAuthorizedException {
+        String authorization = headers.getHeaderString(AUTHORIZATION);
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            LOGGER.warning("no authorization header with bearer token");
+            throw new NotAuthorizedException("bearer_token_missing_in_authorization_header");
+        }
+        String token = authorization.substring(7);
+        if (token == null || token.isEmpty()) {
+            LOGGER.warning("empty access token");
+            throw new NotAuthorizedException("missing_access_token");
+        }
+        return token;
+    }
 }

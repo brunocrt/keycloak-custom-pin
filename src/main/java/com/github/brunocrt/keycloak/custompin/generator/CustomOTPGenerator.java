@@ -7,26 +7,40 @@ import javax.crypto.spec.SecretKeySpec;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.*;
+import java.util.logging.Logger;
 
 public class CustomOTPGenerator implements PINGenerator {
 
-    private final String HASH_ALGO = "HmacSHA256";
-    private final String DEFAULT_TIME_FORMAT = "HH:mm";
+    private static final Logger LOGGER = Logger.getLogger(CustomOTPGenerator.class.getName());
+
+    // Algorithm config
+    private final String        HASH_ALGO           = "HmacSHA256";
+
+    // Time configuration
+    private final ChronoUnit    DEFAULT_TIME_UNIT   = ChronoUnit.MINUTES; // minutes
+    private final String        DEFAULT_TIME_FORMAT = "HH:mm"; // hours + minutes
+    private final Integer       EXPIRE_TIME_RATIO   = 1; // 1 minute duration
+    private final Integer       EXPIRE_TIME_GRACE   = 1; // 1 minute tolerance
+
+    // Token configuration
+    private final Integer       DEFAULT_OTP_LENGTH  = 8;
 
     private String timeFormat;
+    private ChronoUnit timeUnit;
 
     public CustomOTPGenerator() {
         this.timeFormat = DEFAULT_TIME_FORMAT;
+        this.timeUnit = DEFAULT_TIME_UNIT;
     }
 
-    public CustomOTPGenerator(String timeFormat) {
+    public CustomOTPGenerator(String timeFormat, ChronoUnit timeUnit) {
         this.timeFormat = timeFormat;
+        this.timeUnit = timeUnit;
     }
-
 
     @Override
     public String generate(String seed, String data) throws PINGeneratorException {
-        return enforcedHMAC(seed, data, 8);
+        return enforcedHMAC(seed, data, DEFAULT_OTP_LENGTH);
     }
 
     /**
@@ -83,10 +97,15 @@ public class CustomOTPGenerator implements PINGenerator {
             throw new PINGeneratorException("All input data is required to generate the PIN");
 
         String time = LocalTime.now()
-                .plus(1, ChronoUnit.MINUTES)
+                .plus(EXPIRE_TIME_RATIO, this.timeUnit)
                 .format(DateTimeFormatter.ofPattern(this.timeFormat));
 
-        String secret = seed + time;
+        // adjust time for tolerance (grace) period (ex. 1 minute + 1)
+        String adjustedTime = String.valueOf( Integer.parseInt(time.replaceAll(":",""))/(EXPIRE_TIME_GRACE+1) );
+
+        //LOGGER.fine("adjustedTime: "+time);
+
+        String secret = seed + adjustedTime;
 
         try {
             Mac mac = Mac.getInstance(HASH_ALGO);

@@ -5,6 +5,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
@@ -25,7 +26,7 @@ public class CustomOTPGeneratorTest {
 
     @Before
     public void setUp() throws Exception {
-        generator = new CustomOTPGenerator("HH:mm:ss");
+        generator = new CustomOTPGenerator("HH:mm:ss", ChronoUnit.SECONDS);
     }
 
     @After
@@ -76,7 +77,7 @@ public class CustomOTPGeneratorTest {
             String pin = generator.generate(SEED,DATA);
             log(" - PIN generated["+String.valueOf(i)+"]: "+pin);
             pinList.add(pin);
-            Thread.sleep(1000 * 1); // wait 1 sec before next generation
+            Thread.sleep(2000 * 1); // wait 1 sec before next generation
         }
         String previousPIN = pinList.remove(0);
         for(String pin : pinList) {

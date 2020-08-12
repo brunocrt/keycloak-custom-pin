@@ -21,3 +21,5 @@ ECHO "Deploying the %PLUGIN_FILE% plugin..."
 docker-compose exec keycloak /opt/jboss/keycloak/bin/add-user-keycloak.sh -u admin -p admin
 docker-compose exec keycloak cp -r /mnt/%PLUGIN_FILE% /opt/jboss/keycloak/standalone/deployments/%PLUGIN_FILE%
 docker-compose restart keycloak
+ECHO "Waiting for Keycloak restart to apply changes..."
+TIMEOUT 10
