@@ -44,6 +44,7 @@ public class CustomPINResourceProvider implements RealmResourceProvider {
     private static final String INPUT_PARAM_USERNAME = "username";
     private static final String OUTPUT_PARAM_REALM = "REALM";
     private static final String OUTPUT_PARAM_PIN = "REQUESTED_PIN";
+    private static final String OUTPUT_PARAM_USER = "USER";
 
     private static final String GENERATOR_SEED = "1020304050";
 
@@ -87,6 +88,7 @@ public class CustomPINResourceProvider implements RealmResourceProvider {
         Map<String,String> responseEntity = new HashMap<String,String>();
         responseEntity.put(OUTPUT_PARAM_REALM, realmName);
         responseEntity.put(OUTPUT_PARAM_PIN, generatedPIN);
+        responseEntity.put(OUTPUT_PARAM_USER, userName);
 
         return Response.ok(responseEntity, MediaType.APPLICATION_JSON).build();
     }
